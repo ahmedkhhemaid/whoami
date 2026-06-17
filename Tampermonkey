@@ -1,0 +1,166 @@
+// ==UserScript==
+// @name         Uber Supplier - Hide Drivers and Performance
+// @namespace    http://tampermonkey.net/
+// @version      6.0
+// @description  Hide Drivers + Performance tabs and select Vehicles + Assignments by default
+// @match        https://supplier.uber.com/*
+// @match        https://*.uber.com/*
+// @run-at       document-idle
+// @grant        GM_addStyle
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    console.log('[TM] Uber Supplier script running:', location.href);
+
+    // Main top tabs
+    const driverSelector = `
+        button[data-testid="driver-tab"],
+        button[data-tracking-name="driver"],
+        button[id*="ENTITY_TYPE_DRIVER"],
+        button[aria-controls*="ENTITY_TYPE_DRIVER"]
+    `;
+
+    const vehicleSelector = `
+        button[data-testid="vehicle-tab"],
+        button[data-tracking-name="vehicle"],
+        button[id*="ENTITY_TYPE_VEHICLE"],
+        button[aria-controls*="ENTITY_TYPE_VEHICLE"]
+    `;
+
+    // Inner vehicle tabs
+    const performanceInnerSelector = `
+        [data-testid="tab-performance"],
+        [data-tracking-name="tab-performance"]
+    `;
+
+    const assignmentsInnerSelector = `
+        [data-testid="tab-assignments-and-requirements"],
+        [data-tracking-name="tab-assignments-and-requirements"]
+    `;
+
+    // CSS hide rules
+    GM_addStyle(`
+        ${driverSelector} {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        button:has([data-testid="tab-performance"]),
+        button:has([data-tracking-name="tab-performance"]) {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+    `);
+
+    let selectedVehicleOnce = false;
+    let selectedAssignmentsOnce = false;
+
+    function getButtonFromInnerSelector(selector) {
+        const inner = document.querySelector(selector);
+        if (!inner) return null;
+        return inner.closest('button[role="tab"], button');
+    }
+
+    function hideElement(el) {
+        if (!el) return;
+
+        el.style.setProperty('display', 'none', 'important');
+        el.style.setProperty('visibility', 'hidden', 'important');
+        el.style.setProperty('opacity', '0', 'important');
+        el.style.setProperty('pointer-events', 'none', 'important');
+    }
+
+    function clickElement(el) {
+        if (!el) return;
+
+        el.click();
+
+        el.dispatchEvent(new MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            view: window
+        }));
+
+        el.dispatchEvent(new MouseEvent('mouseup', {
+            bubbles: true,
+            cancelable: true,
+            view: window
+        }));
+
+        el.dispatchEvent(new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            view: window
+        }));
+    }
+
+    function handleMainTabs() {
+        const driverTab = document.querySelector(driverSelector);
+        const vehicleTab = document.querySelector(vehicleSelector);
+
+        hideElement(driverTab);
+
+        if (!vehicleTab) return;
+
+        const vehicleIsSelected = vehicleTab.getAttribute('aria-selected') === 'true';
+        const driverIsSelected = driverTab && driverTab.getAttribute('aria-selected') === 'true';
+
+        if (!vehicleIsSelected && (!selectedVehicleOnce || driverIsSelected)) {
+            console.log('[TM] Selecting Vehicles tab');
+            clickElement(vehicleTab);
+            selectedVehicleOnce = true;
+        }
+
+        if (vehicleIsSelected) {
+            selectedVehicleOnce = true;
+        }
+    }
+
+    function handleVehicleInnerTabs() {
+        const performanceTab = getButtonFromInnerSelector(performanceInnerSelector);
+        const assignmentsTab = getButtonFromInnerSelector(assignmentsInnerSelector);
+
+        hideElement(performanceTab);
+
+        if (!assignmentsTab) return;
+
+        const assignmentsIsSelected = assignmentsTab.getAttribute('aria-selected') === 'true';
+        const performanceIsSelected = performanceTab && performanceTab.getAttribute('aria-selected') === 'true';
+
+        if (!assignmentsIsSelected && (!selectedAssignmentsOnce || performanceIsSelected)) {
+            console.log('[TM] Selecting Assignments and requirements tab');
+            clickElement(assignmentsTab);
+            selectedAssignmentsOnce = true;
+        }
+
+        if (assignmentsIsSelected) {
+            selectedAssignmentsOnce = true;
+        }
+    }
+
+    function run() {
+        handleMainTabs();
+        handleVehicleInnerTabs();
+    }
+
+    run();
+
+    const observer = new MutationObserver(() => {
+        run();
+    });
+
+    observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['aria-selected', 'style', 'class', 'tabindex']
+    });
+
+    setInterval(run, 1000);
+})();
